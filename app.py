@@ -24,7 +24,6 @@ class PDFProtocol(FPDF):
     self.protocol_type = protocol_type
 
   def header(self):
-    # Firmenkopf (Nur Standard-ASCII-Zeichen verwenden, um Encoding-Fehler zu vermeiden)
     self.set_font("Helvetica", "B", 14)
     self.set_text_color(20, 40, 80)
     self.cell(
@@ -44,7 +43,6 @@ class PDFProtocol(FPDF):
     )
     self.ln(3)
 
-    # Trennlinie
     self.set_draw_color(200, 200, 200)
     self.set_line_width(0.4)
     self.line(10, self.get_y(), 200, self.get_y())
@@ -321,8 +319,8 @@ if submitted:
       "L",
   )
 
-  # PDF Bytes generieren
-  pdf_bytes = pdf.output()
+  # PDF Bytes erzwingen, damit Streamlit sie verarbeiten kann
+  pdf_bytes = bytes(pdf.output())
 
   st.success("Protokoll wurde erfolgreich erstellt!")
   st.download_button(
