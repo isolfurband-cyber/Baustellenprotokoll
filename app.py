@@ -164,6 +164,7 @@ with st.form("protocol_form"):
         height=150,
         width=350,
         drawing_mode="freedraw",
+        return_image_data=True,
         key="canvas_landlord",
     )
 
@@ -177,6 +178,7 @@ with st.form("protocol_form"):
         height=150,
         width=350,
         drawing_mode="freedraw",
+        return_image_data=True,
         key="canvas_tenant",
     )
 
