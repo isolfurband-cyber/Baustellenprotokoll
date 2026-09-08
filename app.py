@@ -1,5 +1,6 @@
 from datetime import datetime
 import io
+import tempfile
 from fpdf import FPDF
 from PIL import Image
 import streamlit as st
@@ -297,15 +298,42 @@ if submitted:
   )
   pdf.ln(10)
 
-  # Unterschriften
+  # Unterschriften Sektion
   pdf.set_font("Helvetica", "B", 10)
   pdf.set_fill_color(240, 244, 248)
   pdf.cell(0, 7, " Unterschriften", 0, 1, "L", fill=True)
-  pdf.ln(5)
+  pdf.ln(3)
 
-  pdf.cell(95, 6, " Unterschrift Vermieter", 0, 0, "L")
-  pdf.cell(95, 6, " Unterschrift Mieter", 0, 1, "L")
-  pdf.ln(20)  # Platzhalter für Unterschriftenlinien
+  pdf.cell(95, 6, "Unterschrift Vermieter", 0, 0, "L")
+  pdf.cell(95, 6, "Unterschrift Mieter", 0, 1, "L")
+  pdf.ln(2)
+
+  y_before_sig = pdf.get_y()
+
+  # Unterschriftenbilder aus Canvas einbetten
+  if (
+      canvas_landlord.image_data is not None
+      and len(canvas_landlord.image_data) > 0
+  ):
+    img_landlord = Image.fromarray(
+        canvas_landlord.image_data.astype("uint8"), "RGBA"
+    )
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp1:
+      img_landlord.save(tmp1.name, format="PNG")
+      pdf.image(tmp1.name, x=10, y=y_before_sig, w=85)
+
+  if (
+      canvas_tenant.image_data is not None
+      and len(canvas_tenant.image_data) > 0
+  ):
+    img_tenant = Image.fromarray(
+        canvas_tenant.image_data.astype("uint8"), "RGBA"
+    )
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp2:
+      img_tenant.save(tmp2.name, format="PNG")
+      pdf.image(tmp2.name, x=110, y=y_before_sig, w=85)
+
+  pdf.ln(30)  # Platzhalter-Abstand nach den Unterschriften
 
   pdf.set_font("Helvetica", "I", 8)
   pdf.set_text_color(100, 100, 100)
@@ -319,7 +347,7 @@ if submitted:
       "L",
   )
 
-  # PDF Bytes erzwingen, damit Streamlit sie verarbeiten kann
+  # PDF Bytes erzwingen
   pdf_bytes = bytes(pdf.output())
 
   st.success("Protokoll wurde erfolgreich erstellt!")
