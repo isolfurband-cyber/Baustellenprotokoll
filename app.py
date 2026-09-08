@@ -305,11 +305,9 @@ if submitted:
   pdf.cell(0, 7, " Unterschriften", 0, 1, "L", fill=True)
   pdf.ln(5)
 
-  # Unterschriften-Canvas in PDF einbetten (falls vorhanden)
-  sig_y = pdf.get_y()
   pdf.cell(95, 6, " Unterschrift Vermieter", 0, 0, "L")
   pdf.cell(95, 6, " Unterschrift Mieter", 0, 1, "L")
-  pdf.ln(20)  Platzhalter für Unterschriftenlinien
+  pdf.ln(20)  # Platzhalter für Unterschriftenlinien
 
   pdf.set_font("Helvetica", "I", 8)
   pdf.set_text_color(100, 100, 100)
