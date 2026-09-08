@@ -1,6 +1,5 @@
 from datetime import datetime
 import io
-import tempfile
 from fpdf import FPDF
 from PIL import Image
 import streamlit as st
@@ -161,8 +160,8 @@ with st.form("protocol_form"):
         stroke_width=2,
         stroke_color="#000000",
         background_color="#FFFFFF",
-        height=150,
-        width=350,
+        height=120,
+        width=300,
         drawing_mode="freedraw",
         return_image_data=True,
         key="canvas_landlord",
@@ -175,8 +174,8 @@ with st.form("protocol_form"):
         stroke_width=2,
         stroke_color="#000000",
         background_color="#FFFFFF",
-        height=150,
-        width=350,
+        height=120,
+        width=300,
         drawing_mode="freedraw",
         return_image_data=True,
         key="canvas_tenant",
@@ -304,38 +303,39 @@ if submitted:
   pdf.set_font("Helvetica", "B", 10)
   pdf.set_fill_color(240, 244, 248)
   pdf.cell(0, 7, " Unterschriften", 0, 1, "L", fill=True)
-  pdf.ln(3)
+  pdf.ln(5)
 
-  pdf.cell(95, 6, "Unterschrift Vermieter", 0, 0, "L")
-  pdf.cell(95, 6, "Unterschrift Mieter", 0, 1, "L")
-  pdf.ln(2)
+  # Y-Position vor dem Einfügen merken
+  y_sig = pdf.get_y()
 
-  y_before_sig = pdf.get_y()
+  pdf.set_font("Helvetica", "B", 9)
+  pdf.cell(95, 5, "Unterschrift Vermieter", 0, 0, "L")
+  pdf.cell(95, 5, "Unterschrift Mieter", 0, 1, "L")
 
-  # Unterschriftenbilder aus Canvas einbetten
-  if (
-      canvas_landlord.image_data is not None
-      and len(canvas_landlord.image_data) > 0
-  ):
-    img_landlord = Image.fromarray(
-        canvas_landlord.image_data.astype("uint8"), "RGBA"
-    )
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp1:
-      img_landlord.save(tmp1.name, format="PNG")
-      pdf.image(tmp1.name, x=10, y=y_before_sig, w=85)
+  y_img = pdf.get_y()
 
-  if (
-      canvas_tenant.image_data is not None
-      and len(canvas_tenant.image_data) > 0
-  ):
-    img_tenant = Image.fromarray(
-        canvas_tenant.image_data.astype("uint8"), "RGBA"
-    )
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp2:
-      img_tenant.save(tmp2.name, format="PNG")
-      pdf.image(tmp2.name, x=110, y=y_before_sig, w=85)
+  # Funktion zum Einbetten von Canvas-Daten direkt über BytesIO
+  def embed_signature(canvas_obj, x_pos):
+    if canvas_obj.image_data is not None:
+      try:
+        # Konvertiere NumPy-Array direkt in ein PIL Image
+        img = Image.fromarray(
+            canvas_obj.image_data.astype("uint8"), mode="RGBA"
+        )
+        # In BytesIO Puffer schreiben (PNG Format)
+        img_io = io.BytesIO()
+        img.save(img_io, format="PNG")
+        img_io.seek(0)
+        # Bild direkt in FPDF laden
+        pdf.image(img_io, x=x_pos, y=y_img, w=85)
+      except Exception as e:
+        print(f"Fehler beim Laden der Unterschrift: {e}")
 
-  pdf.ln(30)  # Platzhalter-Abstand nach den Unterschriften
+  embed_signature(canvas_landlord, 10)
+  embed_signature(canvas_tenant, 110)
+
+  # Platzhalter für den Platz der Unterschriften im PDF einnehmen
+  pdf.ln(25)
 
   pdf.set_font("Helvetica", "I", 8)
   pdf.set_text_color(100, 100, 100)
