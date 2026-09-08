@@ -7,7 +7,7 @@ from streamlit_drawable_canvas import st_canvas
 
 # Seitenkonfiguration
 st.set_page_config(
-    page_title="KARE-Immobilien – Wohnungsabnahmeprotokoll",
+    page_title="KARE-Immobilien - Wohnungsabnahmeprotokoll",
     page_icon="📋",
     layout="wide",
 )
@@ -19,16 +19,16 @@ st.set_page_config(
 
 class PDFProtocol(FPDF):
 
-  def __init__(self, protocol_type="Übergabe"):
+  def __init__(self, protocol_type="Uebergabe"):
     super().__init__()
     self.protocol_type = protocol_type
 
   def header(self):
-    # Firmenkopf
+    # Firmenkopf (Nur Standard-ASCII-Zeichen verwenden, um Encoding-Fehler zu vermeiden)
     self.set_font("Helvetica", "B", 14)
     self.set_text_color(20, 40, 80)
     self.cell(
-        0, 8, "KARE-Immobilien – Wohnungsabnahmeprotokoll", 0, 1, "LEFT"
+        0, 8, "KARE-Immobilien - Wohnungsabnahmeprotokoll", 0, 1, "LEFT"
     )
 
     self.set_font("Helvetica", "", 9)
@@ -250,7 +250,7 @@ if submitted:
   pdf.cell(
       190,
       6,
-      f" Heizkostenverteiler — Wohnzimmer: {h_wz} | Kinderzimmer: {h_kz} |"
+      f" Heizkostenverteiler - Wohnzimmer: {h_wz} | Kinderzimmer: {h_kz} |"
       f" Flur: {h_fl}",
       0,
       1,
@@ -259,7 +259,7 @@ if submitted:
   pdf.cell(
       190,
       6,
-      f" Heizkostenverteiler — Bad: {h_ba} | Küche: {h_ku}",
+      f" Heizkostenverteiler - Bad: {h_ba} | Küche: {h_ku}",
       0,
       1,
       "L",
