@@ -6,7 +6,7 @@ from PIL import Image
 import numpy as np
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
-from weasyprint import HTML
+from fpdf import FPDF
 
 st.set_page_config(
     page_title="KARE-Immobilien Handwerker- & Baustellenprotokoll",
@@ -16,8 +16,8 @@ st.set_page_config(
 
 st.title("KARE-Immobilien – Baustellen- & Handwerkerprotokoll")
 st.markdown(
-    "Abnahme von Handwerkerleistungen, Baudokumentation und Erfassung von"
-    " Restarbeiten oder Mängeln vor Rechnungsfreigabe."
+    "Abnahme von Handwerkerleistungen, Baudokumentation und Erfassung von "
+    "Restarbeiten oder Mängeln vor Rechnungsfreigabe."
 )
 
 with st.form("handwerker_form"):
@@ -66,8 +66,8 @@ with st.form("handwerker_form"):
     beschreibung = st.text_area(
         "Gegenstand der Arbeiten / Ausgeführte Leistungen",
         placeholder=(
-            "z.B. Erneuerung der Steigleitungen im Kellergeschoss und"
-            " Installation neuer Wasserzähler..."
+            "z.B. Erneuerung der Steigleitungen im Kellergeschoss und "
+            "Installation neuer Wasserzähler..."
         ),
     )
 
@@ -153,204 +153,168 @@ with col_sig_info2:
 if submit_button:
     if not protokoll_bestätigt:
         st.error(
-            "Bitte bestätige das Protokoll über die Checkbox, bevor du das PDF"
-            " generierst."
+            "Bitte bestätige das Protokoll über die Checkbox, bevor du das PDF "
+            "generierst."
         )
     else:
-        images_html = ""
+        # FPDF PDF-Klasse definieren
+        class PDF(FPDF):
+            def header(self):
+                self.set_font('helvetica', 'B', 16)
+                self.set_text_color(2, 132, 199)
+                self.cell(0, 8, "KARE-Immobilien", ln=True)
+                self.set_font('helvetica', '', 9)
+                self.set_text_color(85, 85, 85)
+                self.cell(0, 5, "Talstr. 32, 07545 Gera | Tel.: 0365 / 800 49 37 | E-Mail: Info@KARE-Immobilien.de", ln=True)
+                self.ln(4)
+                self.set_draw_color(2, 132, 199)
+                self.set_line_width(0.8)
+                self.line(10, self.get_y(), 200, self.get_y())
+                self.ln(6)
+
+            def footer(self):
+                self.set_y(-15)
+                self.set_font('helvetica', '', 8)
+                self.set_text_color(100, 100, 100)
+                self.cell(0, 10, f"KARE-Immobilien · Talstr. 32 · 07545 Gera                Seite {self.page_no()}/{{nb}}", 0, 0, 'R')
+
+        pdf = PDF()
+        pdf.alias_nb_pages()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+
+        # Titel des Dokuments
+        pdf.set_font('helvetica', 'B', 13)
+        pdf.set_text_color(15, 23, 42)
+        pdf.cell(0, 8, "Baustellen- und Handwerkerprotokoll", ln=True)
+        pdf.ln(2)
+
+        # Hilfsfunktion für Tabellenzeilen (Umlaut-Bereinigung für Standard-Helvetica)
+        def clean(text):
+            if not text:
+                return ""
+            return str(text).encode('latin-1', 'replace').decode('latin-1')
+
+        def add_row(label, value):
+            pdf.set_font('helvetica', 'B', 9)
+            pdf.set_fill_color(240, 249, 255)
+            pdf.set_text_color(3, 105, 161)
+            pdf.cell(50, 7, clean(label), border=1, fill=True)
+            pdf.set_font('helvetica', '', 9)
+            pdf.set_text_color(51, 51, 51)
+            pdf.cell(140, 7, clean(value), border=1, ln=True)
+
+        # 1. Stammdaten & Objekt
+        pdf.set_font('helvetica', 'B', 11)
+        pdf.set_text_color(2, 132, 199)
+        pdf.cell(0, 8, "1. Stammdaten & Objekt", ln=True)
+        
+        add_row("Objektadresse", objekt_adresse)
+        add_row("Gewerk", gewerk)
+        add_row("Handwerksfirma", f"{handwerker_firma} (Vertreter: {anwesend_firma})")
+        add_row("Datum & Art", f"{datum.strftime('%d.%m.%Y')} - {art_begehung}")
+        add_row("Abnahme durch", bearbeiter)
+        pdf.ln(4)
+
+        # 2. Leistung & Abnahmestatus
+        pdf.set_font('helvetica', 'B', 11)
+        pdf.set_text_color(2, 132, 199)
+        pdf.cell(0, 8, "2. Leistung & Abnahmestatus", ln=True)
+
+        add_row("Leistungsbeschreibung", beschreibung)
+        add_row("Abnahmeergebnis", abnahme_status)
+        add_row("Maengel / Restarbeiten", maengel_text if maengel_text else "Keine Maengel festgestellt.")
+        add_row("Vereinbarte Massnahme", massnahme)
+        add_row("Frist zur Mängelbeseitigung", frist.strftime('%d.%m.%Y'))
+        pdf.ln(6)
+
+        # 4. Fotodokumentation einbetten (falls vorhanden)
         if uploaded_files:
-            images_html = "<h3>Fotodokumentation</h3><div class='photo-grid'>"
+            pdf.set_font('helvetica', 'B', 11)
+            pdf.set_text_color(2, 132, 199)
+            pdf.cell(0, 8, "Fotodokumentation", ln=True)
+            pdf.ln(2)
+
             for idx, file in enumerate(uploaded_files):
                 img = Image.open(file)
-                if img.mode in ("RGBA", "LA") or (
-                    img.mode == "P" and "transparency" in img.info
-                ):
+                if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
                     img = img.convert("RGB")
+                
+                # Bild temporär im Arbeitsspeicher sichern
+                img_path = f"temp_photo_{idx}.jpg"
+                img.save(img_path, "JPEG")
+                
+                pdf.image(img_path, w=80)
+                pdf.set_font('helvetica', '', 8)
+                pdf.set_text_color(100, 100, 100)
+                pdf.cell(0, 6, clean(f"Foto {idx+1}: {file.name}"), ln=True)
+                pdf.ln(4)
+                
+                # Aufräumen
+                if os.path.exists(img_path):
+                    os.remove(img_path)
 
-                buffered = BytesIO()
-                img.save(buffered, format="JPEG")
-                img_str = base64.b64encode(buffered.getvalue()).decode()
-                images_html += f"""
-                <div class='photo-box'>
-                    <img src='data:image/jpeg;base64,{img_str}' style='width:100%; max-height:180px; object-fit:cover; border-radius:4px;'/>
-                    <p style='font-size:9pt; color:#555; text-align:center; margin-top:4px;'>Foto {idx+1}: {file.name}</p>
-                </div>
-                """
-            images_html += "</div>"
+        # Signaturen verarbeiten und einfügen
+        pdf.ln(5)
+        pdf.set_font('helvetica', 'B', 11)
+        pdf.set_text_color(2, 132, 199)
+        pdf.cell(0, 8, "Unterschriften", ln=True)
+        pdf.ln(2)
 
-        def get_sig_base64(state_key):
+        def save_sig_to_file(state_key, filename):
             if state_key in st.session_state and st.session_state[state_key] is not None:
                 img_data = st.session_state[state_key].astype("uint8")
                 pil_img = Image.fromarray(img_data, mode="RGBA")
                 background = Image.new("RGB", pil_img.size, (255, 255, 255))
                 background.paste(pil_img, mask=pil_img.split()[3])
-                
-                buffered = BytesIO()
-                background.save(buffered, format="PNG")
-                return base64.b64encode(buffered.getvalue()).decode()
-            return None
+                background.save(filename, "PNG")
+                return True
+            return False
 
-        sig_str1 = get_sig_base64("saved_handwerker_sig")
-        sig_str2 = get_sig_base64("saved_kare_sig")
+        sig1_exists = save_sig_to_file("saved_handwerker_sig", "sig1.png")
+        sig2_exists = save_sig_to_file("saved_kare_sig", "sig2.png")
 
-        sig_handwerker_html = f"<img src='data:image/png;base64,{sig_str1}' style='max-height:55px; display:block; margin-bottom:2px;'/><br>" if sig_str1 else "<br><br>"
-        sig_handwerker_html += "____________________________________<br>Handwerker / Auftragnehmer"
+        start_y = pdf.get_y()
+        
+        # Handwerker Unterschrift Block
+        pdf.set_xy(10, start_y)
+        if sig1_exists:
+            pdf.image("sig1.png", w=60)
+            pdf.ln(2)
+        else:
+            pdf.ln(15)
+        pdf.set_x(10)
+        pdf.set_font('helvetica', '', 9)
+        pdf.set_text_color(51, 51, 51)
+        pdf.cell(90, 5, "____________________________________", ln=True)
+        pdf.set_x(10)
+        pdf.cell(90, 5, clean("Handwerker / Auftragnehmer"))
 
-        sig_kare_html = f"<img src='data:image/png;base64,{sig_str2}' style='max-height:55px; display:block; margin-bottom:2px;'/><br>" if sig_str2 else "<br><br>"
-        sig_kare_html += "____________________________________<br>KARE-Immobilien"
+        # KARE-Immobilien Unterschrift Block
+        pdf.set_xy(110, start_y)
+        if sig2_exists:
+            pdf.image("sig2.png", w=60)
+            pdf.ln(2)
+        else:
+            pdf.ln(15)
+        pdf.set_x(110)
+        pdf.cell(90, 5, "____________________________________", ln=True)
+        pdf.set_x(110)
+        pdf.cell(90, 5, clean("KARE-Immobilien"))
 
-        html_content = f"""
-        <!DOCTYPE html>
-        <html lang="de">
-        <head>
-        <meta charset="UTF-8">
-        <style>
-            @page {{
-                size: A4;
-                margin: 15mm;
-                background-color: #ffffff;
-                @bottom-right {{
-                    content: "Seite " counter(page) " von " counter(pages);
-                    font-size: 8pt;
-                    color: #666;
-                }}
-                @bottom-left {{
-                    content: "KARE-Immobilien · Talstr. 32 · 07545 Gera";
-                    font-size: 8pt;
-                    color: #666;
-                }}
-            }}
-            body {{
-                font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-                color: #333333;
-                line-height: 1.4;
-                font-size: 10pt;
-                margin: 0;
-                padding: 0;
-            }}
-            .header {{
-                border-bottom: 2px solid #0284c7;
-                padding-bottom: 10px;
-                margin-bottom: 20px;
-            }}
-            .header h1 {{
-                color: #0284c7;
-                font-size: 20pt;
-                margin: 0 0 5px 0;
-            }}
-            .header p {{
-                margin: 0;
-                color: #555;
-                font-size: 9pt;
-            }}
-            h2 {{
-                color: #0284c7;
-                font-size: 12pt;
-                border-bottom: 1px solid #cbd5e1;
-                padding-bottom: 4px;
-                margin-top: 15px;
-                margin-bottom: 8px;
-            }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-bottom: 10px;
-            }}
-            th, td {{
-                padding: 5px 8px;
-                border: 1px solid #cbd5e1;
-                vertical-align: top;
-            }}
-            th {{
-                background-color: #f0f9ff;
-                color: #0369a1;
-                text-align: left;
-                width: 30%;
-            }}
-            td {{
-                width: 70%;
-            }}
-            .photo-grid {{
-                display: flex;
-                flex-wrap: wrap;
-                gap: 10px;
-                margin-top: 10px;
-            }}
-            .photo-box {{
-                width: 48%;
-                border: 1px solid #cbd5e1;
-                padding: 5px;
-                background: #f8fafc;
-                margin-bottom: 10px;
-                page-break-inside: avoid;
-            }}
-            .signature-section {{
-                margin-top: 25px;
-                page-break-inside: avoid;
-            }}
-            .sig-box {{
-                width: 45%;
-                display: inline-block;
-                margin-top: 20px;
-                text-align: center;
-            }}
-        </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>KARE-Immobilien</h1>
-                <p>Talstr. 32, 07545 Gera | Tel.: 0365 / 800 49 37 | E-Mail: Info@KARE-Immobilien.de</p>
-                <h2 style="border:none; color:#0f172a; margin-top:10px; font-size:15pt;">Baustellen- und Handwerkerprotokoll</h2>
-            </div>
+        # Temporäre Signatur-Dateien aufräumen
+        for f in ["sig1.png", "sig2.png"]:
+            if os.path.exists(f):
+                os.remove(f)
 
-            <h2>1. Stammdaten & Objekt</h2>
-            <table>
-                <tr><th>Objektadresse</th><td>{objekt_adresse}</td></tr>
-                <tr><th>Gewerk</th><td>{gewerk}</td></tr>
-                <tr><th>Handwerksfirma</th><td>{handwerker_firma} (Vertreter: {anwesend_firma})</td></tr>
-                <tr><th>Datum & Art</th><td>{datum.strftime('%d.%m.%Y')} – {art_begehung}</td></tr>
-                <tr><th>Abnahme durch</th><td>{bearbeiter}</td></tr>
-            </table>
-
-            <h2>2. Leistung & Abnahmestatus</h2>
-            <table>
-                <tr><th>Leistungsbeschreibung</th><td>{beschreibung}</td></tr>
-                <tr><th>Abnahmeergebnis</th><td><b>{abnahme_status}</b></td></tr>
-                <tr><th>Mängel / Restarbeiten</th><td>{maengel_text if maengel_text else "Keine Mängel festgestellt."}</td></tr>
-                <tr><th>Vereinbarte Maßnahme</th><td>{massnahme}</td></tr>
-                <tr><th>Frist zur Mängelbeseitigung</th><td>{frist.strftime('%d.%m.%Y')}</td></tr>
-            </table>
-
-            {images_html}
-
-            <div class="signature-section">
-                <p style="margin-bottom:15px; font-size:9pt;">Bestätigung der aufgeführten Leistungen und Mängel.</p>
-                <div style="width: 100%;">
-                    <div class="sig-box" style="float: left;">
-                        {sig_handwerker_html}
-                    </div>
-                    <div class="sig-box" style="float: right;">
-                        {sig_kare_html}
-                    </div>
-                </div>
-                <div style="clear: both;"></div>
-            </div>
-        </body>
-        </html>
-        """
-
-        pdf_path = "handwerker_protokoll.pdf"
-        HTML(string=html_content).write_pdf(pdf_path)
-
-        with open(pdf_path, "rb") as pdf_file:
-            PDFbyte = pdf_file.read()
+        pdf_bytes = pdf.output(dest='S').encode('latin1')
 
         st.success("Handwerkerprotokoll erfolgreich als PDF erstellt!")
         st.download_button(
             label="📄 Handwerkerprotokoll als PDF herunterladen",
-            data=PDFbyte,
+            data=pdf_bytes,
             file_name=(
                 f"Handwerker_{datum.strftime('%Y%m%d')}_{gewerk.split('/')[0].strip()}.pdf"
             ),
-            mime="application/octet-stream",
+            mime="application/pdf",
         )
