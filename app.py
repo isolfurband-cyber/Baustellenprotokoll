@@ -1,320 +1,337 @@
 from datetime import datetime
-import os
-from io import BytesIO
-import base64
+import io
+from fpdf import FPDF
 from PIL import Image
-import numpy as np
 import streamlit as st
 from streamlit_drawable_canvas import st_canvas
-from fpdf import FPDF
 
+# Seitenkonfiguration
 st.set_page_config(
-    page_title="KARE-Immobilien Handwerker- & Baustellenprotokoll",
-    page_icon="🔨",
+    page_title="KARE-Immobilien – Wohnungsabnahmeprotokoll",
+    page_icon="📋",
     layout="wide",
 )
 
-st.title("KARE-Immobilien – Baustellen- & Handwerkerprotokoll")
+# -------------------------------------------------------------
+# FPDF KLASSE MIT HEADER & FOOTER
+# -------------------------------------------------------------
+
+
+class PDFProtocol(FPDF):
+
+  def __init__(self, protocol_type="Übergabe"):
+    super().__init__()
+    self.protocol_type = protocol_type
+
+  def header(self):
+    # Firmenkopf
+    self.set_font("Helvetica", "B", 14)
+    self.set_text_color(20, 40, 80)
+    self.cell(
+        0, 8, "KARE-Immobilien – Wohnungsabnahmeprotokoll", 0, 1, "LEFT"
+    )
+
+    self.set_font("Helvetica", "", 9)
+    self.set_text_color(100, 100, 100)
+    self.cell(
+        0,
+        5,
+        "Talstr. 32 | 07545 Gera | Tel.: 0365 / 800 49 37 | E-Mail:"
+        " Info@KARE-Immobilien.de",
+        0,
+        1,
+        "LEFT",
+    )
+    self.ln(3)
+
+    # Trennlinie
+    self.set_draw_color(200, 200, 200)
+    self.set_line_width(0.4)
+    self.line(10, self.get_y(), 200, self.get_y())
+    self.ln(5)
+
+  def footer(self):
+    self.set_y(-15)
+    self.set_font("Helvetica", "I", 8)
+    self.set_text_color(120, 120, 120)
+    self.cell(
+        0,
+        10,
+        f"Seite {self.page_no()} von {{nb}} | KARE-Immobilien - Protokoll"
+        f" ({self.protocol_type})",
+        0,
+        0,
+        "C",
+    )
+
+
+# -------------------------------------------------------------
+# STREAMLIT BENUTZEROBERFLÄCHE
+# -------------------------------------------------------------
+
+st.title("📋 KARE-Immobilien – Digitales Abnahmeprotokoll")
 st.markdown(
-    "Abnahme von Handwerkerleistungen, Baudokumentation und Erfassung von "
-    "Restarbeiten oder Mängeln vor Rechnungsfreigabe."
+    "Erstellen Sie hier das rechtssichere Wohnungsabnahmeprotokoll für Ihre"
+    " Mietobjekte in Gera."
 )
 
-with st.form("handwerker_form"):
-    st.header("1. Stammdaten & Objekt")
-    col1, col2 = st.columns(2)
-    with col1:
-        objekt_adresse = st.text_input(
-            "Objektadresse / Liegenschaft", "Talstr. 32, 07545 Gera"
-        )
-        gewerk = st.selectbox(
-            "Gewerk / Handwerksbetrieb",
-            [
-                "Sanitär / Heizung",
-                "Elektroinstallation",
-                "Maler / Tapezierer",
-                "Tischler / Fenster & Türen",
-                "Dachdecker / Bauklempner",
-                "Fassadenbau / Wärmedämmung",
-                "Bodenleger / Fliesenleger",
-                "Allgemeiner Hausmeister- / Reparaturservice",
-                "Sonstiges Gewerk",
-            ],
-        )
-        handwerker_firma = st.text_input(
-            "Name der Handwerksfirma / Auftragnehmer", ""
-        )
-    with col2:
-        datum = st.date_input("Datum der Begehung / Abnahme", datetime.now())
-        bearbeiter = st.text_input(
-            "Abnahme durch (KARE-Immobilien)", "KARE-Immobilien"
-        )
-        anwesend_firma = st.text_input(
-            "Anwesender Vertreter der Firma (optional)", ""
-        )
-
-    st.header("2. Leistungsumfang & Abnahmestatus")
-    art_begehung = st.selectbox(
-        "Art der Prüfung",
-        [
-            "Zwischenstand / Baustellenbegehung",
-            "Mängelfeststellung",
-            "Offizielle Abnahme (Werkleistung)",
-            "Endabnahme nach Sanierung",
-        ],
+with st.form("protocol_form"):
+  st.subheader("1. Allgemeine Objektdaten")
+  col1, col2 = st.columns(2)
+  with col1:
+    proto_type = st.selectbox(
+        "Protokoll-Art", ["Wohnungsübergabe", "Wohnungsrückgabe"]
     )
-    beschreibung = st.text_area(
-        "Gegenstand der Arbeiten / Ausgeführte Leistungen",
-        placeholder=(
-            "z.B. Erneuerung der Steigleitungen im Kellergeschoss und "
-            "Installation neuer Wasserzähler..."
-        ),
+    street = st.text_input("Straße & Hausnummer", "Talstr. 32")
+    zip_city = st.text_input("PLZ & Ort", "07545 Gera")
+    floor = st.text_input("Etage / Lage", "2. Obergeschoss links")
+  with col2:
+    date = st.date_input("Datum der Abnahme", datetime.now())
+    landlord = st.text_input(
+        "Vermieter / Vertreter", "KARE-Immobilien (Hausverwaltung)"
+    )
+    tenant = st.text_input("Mieter", "Max Mustermann")
+    keys_handed = st.text_input(
+        "Übergebene Schlüssel (Anzahl & Art)",
+        "3x Wohnungsschlüssel, 2x Kellerschlüssel, 1x Briefkastenschlüssel",
     )
 
-    abnahme_status = st.radio(
-        "Ergebnis der Abnahme",
-        [
-            "Mängelfreie Abnahme (Leistung voll erbracht)",
-            "Abnahme unter Vorbehalt (Mängel / Restarbeiten vorhanden)",
-            "Abnahme verweigert (wesentliche Mängel)",
-        ],
-    )
+  st.divider()
 
-    st.header("3. Mängel & Restarbeiten")
-    maengel_text = st.text_area(
-        "Festgestellte Mängel / Offene Restarbeiten (falls vorhanden)",
-        placeholder=(
-            "z.B. Silikonfuge im Bad beschädigt, Verkleidung sitzt nicht bündig..."
-        ),
-    )
+  st.subheader("2. Zählerstände")
+  st.markdown(
+      "Bitte tragen Sie die aktuellen Zählerstände und Zählernummern ein:"
+  )
 
-    col_mass, col_frist = st.columns(2)
-    with col_mass:
-        massnahme = st.text_input(
-            "Nacherfüllung / Vereinbarte Maßnahme",
-            "Nachbesserung der aufgeführten Mängel.",
+  col_z1, col_z2 = st.columns(2)
+  with col_z1:
+    kw_num = st.text_input("Zählernummer Kaltwasser", "KW-987654")
+    kw_val = st.text_input("Stand Kaltwasser (m³)", "142.50")
+    ww_num = st.text_input("Zählernummer Warmwasser", "WW-123456")
+    ww_val = st.text_input("Stand Warmwasser (m³)", "58.20")
+  with col_z2:
+    st.markdown("##### Heizungszähler (Heizkostenverteiler)")
+    h_wz = st.text_input("Wohnzimmer (Nr. / Stand)", "HZ-01: 1245")
+    h_kz = st.text_input("Kinderzimmer (Nr. / Stand)", "HZ-02: 832")
+    h_fl = st.text_input("Flur (Nr. / Stand)", "HZ-03: 150")
+    h_ba = st.text_input("Bad (Nr. / Stand)", "HZ-04: 610")
+    h_ku = st.text_input("Küche (Nr. / Stand)", "HZ-05: 445")
+
+  st.divider()
+
+  st.subheader("3. Mängel & Zustand der Räume")
+  rooms = ["Wohnzimmer", "Kinderzimmer", "Flur", "Bad", "Küche", "Schlafzimmer"]
+  room_data = {}
+
+  for room in rooms:
+    with st.expander(f"Raum: {room}"):
+      c1, c2 = st.columns(2)
+      with c1:
+        cond = st.selectbox(
+            f"Zustand {room}", ["Einwandfrei", "Gebrauchsspuren", "Mängel"], key=f"c_{room}"
         )
-    with col_frist:
-        frist = st.date_input(
-            "Frist zur Mängelbeseitigung", datetime.now()
+      with c2:
+        defects = st.text_area(
+            f"Mängel / Bemerkungen in {room}",
+            placeholder="z.B. Bohrlocher in Wand, leichte Kratzer Parkett...",
+            key=f"d_{room}",
         )
+      room_data[room] = {"zustand": cond, "maengel": defects}
 
-    st.header("4. Fotodokumentation")
-    uploaded_files = st.file_uploader(
-        "Fotos der Baustelle / Mängel hochladen (PNG, JPG, JPEG)",
-        type=["png", "jpg", "jpeg"],
-        accept_multiple_files=True,
-    )
+  st.divider()
 
-    protokoll_bestätigt = st.checkbox(
-        "Hiermit wird die sachliche Richtigkeit des Protokolls bestätigt."
-    )
+  st.subheader("4. Allgemeine Vereinbarungen & Nacharbeiten")
+  agreements = st.text_area(
+      "Vereinbarte Fristen oder Sonderabsprachen",
+      placeholder=(
+          "z.B. Mieter streicht das Schlafzimmer bis zum 30.09. fachgerecht"
+          " nach..."
+      ),
+  )
 
-    submit_button = st.form_submit_button(
-        label="Handwerkerprotokoll als PDF generieren"
-    )
+  st.divider()
 
-st.header("5. Digitale Signaturen")
-col_sig_info1, col_sig_info2 = st.columns(2)
-with col_sig_info1:
-    st.write("**Unterschrift Handwerker / Auftragnehmer**")
-    canvas_handwerker = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)",
+  st.subheader("5. Digitale Unterschriften")
+  st.markdown("Bitte unterschreiben Sie im Feld unten:")
+
+  col_sig1, col_sig2 = st.columns(2)
+  with col_sig1:
+    st.markdown("**Unterschrift Vermieter / Vertreter**")
+    canvas_landlord = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="#000000",
-        background_color="#ffffff",
-        height=130,
+        background_color="#FFFFFF",
+        height=150,
         width=350,
         drawing_mode="freedraw",
-        update_streamlit=True,
-        return_image_data=True,
-        key="canvas_handwerker_protokoll",
+        key="canvas_landlord",
     )
-    if canvas_handwerker.image_data is not None and np.any(canvas_handwerker.image_data[:, :, 3] > 0):
-        st.session_state["saved_handwerker_sig"] = canvas_handwerker.image_data
 
-with col_sig_info2:
-    st.write("**Unterschrift KARE-Immobilien**")
-    canvas_kare = st_canvas(
-        fill_color="rgba(255, 255, 255, 0)",
+  with col_sig2:
+    st.markdown("**Unterschrift Mieter**")
+    canvas_tenant = st_canvas(
+        fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="#000000",
-        background_color="#ffffff",
-        height=130,
+        background_color="#FFFFFF",
+        height=150,
         width=350,
         drawing_mode="freedraw",
-        update_streamlit=True,
-        return_image_data=True,
-        key="canvas_kare_handwerker",
+        key="canvas_tenant",
     )
-    if canvas_kare.image_data is not None and np.any(canvas_kare.image_data[:, :, 3] > 0):
-        st.session_state["saved_kare_sig"] = canvas_kare.image_data
 
-if submit_button:
-    if not protokoll_bestätigt:
-        st.error(
-            "Bitte bestätige das Protokoll über die Checkbox, bevor du das PDF "
-            "generierst."
-        )
-    else:
-        # FPDF PDF-Klasse definieren
-        class PDF(FPDF):
-            def header(self):
-                self.set_font('helvetica', 'B', 16)
-                self.set_text_color(2, 132, 199)
-                self.cell(0, 8, "KARE-Immobilien", ln=True)
-                self.set_font('helvetica', '', 9)
-                self.set_text_color(85, 85, 85)
-                self.cell(0, 5, "Talstr. 32, 07545 Gera | Tel.: 0365 / 800 49 37 | E-Mail: Info@KARE-Immobilien.de", ln=True)
-                self.ln(4)
-                self.set_draw_color(2, 132, 199)
-                self.set_line_width(0.8)
-                self.line(10, self.get_y(), 200, self.get_y())
-                self.ln(6)
+  submitted = st.form_submit_button(
+      "Protokoll als PDF generieren & herunterladen"
+  )
 
-            def footer(self):
-                self.set_y(-15)
-                self.set_font('helvetica', '', 8)
-                self.set_text_color(100, 100, 100)
-                self.cell(0, 10, f"KARE-Immobilien · Talstr. 32 · 07545 Gera                Seite {self.page_no()}/{{nb}}", 0, 0, 'R')
+# -------------------------------------------------------------
+# PDF GENERIERUNGS-LOGIK
+# -------------------------------------------------------------
 
-        pdf = PDF()
-        pdf.alias_nb_pages()
-        pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
+if submitted:
+  pdf = PDFProtocol(protocol_type=proto_type)
+  pdf.alias_nb_pages()
+  pdf.add_page()
+  pdf.set_auto_page_break(auto=True, margin=15)
 
-        # Titel des Dokuments
-        pdf.set_font('helvetica', 'B', 13)
-        pdf.set_text_color(15, 23, 42)
-        pdf.cell(0, 8, "Baustellen- und Handwerkerprotokoll", ln=True)
-        pdf.ln(2)
+  # Titel des Dokuments
+  pdf.set_font("Helvetica", "B", 16)
+  pdf.set_text_color(20, 40, 80)
+  pdf.cell(0, 10, f"Wohnungs-{proto_type.lower()}sprotokoll", 0, 1, "C")
+  pdf.ln(5)
 
-        # Hilfsfunktion für Tabellenzeilen (Umlaut-Bereinigung für Standard-Helvetica)
-        def clean(text):
-            if not text:
-                return ""
-            return str(text).encode('latin-1', 'replace').decode('latin-1')
+  # Objektdaten-Box
+  pdf.set_font("Helvetica", "B", 10)
+  pdf.set_fill_color(240, 244, 248)
+  pdf.cell(0, 7, " Objektdaten & Beteiligte", 0, 1, "L", fill=True)
 
-        def add_row(label, value):
-            pdf.set_font('helvetica', 'B', 9)
-            pdf.set_fill_color(240, 249, 255)
-            pdf.set_text_color(3, 105, 161)
-            pdf.cell(50, 7, clean(label), border=1, fill=True)
-            pdf.set_font('helvetica', '', 9)
-            pdf.set_text_color(51, 51, 51)
-            pdf.cell(140, 7, clean(value), border=1, ln=True)
+  pdf.set_font("Helvetica", "", 10)
+  pdf.set_text_color(50, 50, 50)
 
-        # 1. Stammdaten & Objekt
-        pdf.set_font('helvetica', 'B', 11)
-        pdf.set_text_color(2, 132, 199)
-        pdf.cell(0, 8, "1. Stammdaten & Objekt", ln=True)
-        
-        add_row("Objektadresse", objekt_adresse)
-        add_row("Gewerk", gewerk)
-        add_row("Handwerksfirma", f"{handwerker_firma} (Vertreter: {anwesend_firma})")
-        add_row("Datum & Art", f"{datum.strftime('%d.%m.%Y')} - {art_begehung}")
-        add_row("Abnahme durch", bearbeiter)
-        pdf.ln(4)
+  col_w1, col_w2 = 95, 95
+  pdf.cell(
+      col_w1,
+      6,
+      f" Objektadresse: {street}, {zip_city} ({floor})",
+      0,
+      0,
+      "L",
+  )
+  pdf.cell(col_w2, 6, f" Datum: {date.strftime('%d.%m.%Y')}", 0, 1, "L")
+  pdf.cell(col_w1, 6, f" Vermieter: {landlord}", 0, 0, "L")
+  pdf.cell(col_w2, 6, f" Mieter: {tenant}", 0, 1, "L")
+  pdf.cell(0, 6, f" Übergebene Schlüssel: {keys_handed}", 0, 1, "L")
+  pdf.ln(5)
 
-        # 2. Leistung & Abnahmestatus
-        pdf.set_font('helvetica', 'B', 11)
-        pdf.set_text_color(2, 132, 199)
-        pdf.cell(0, 8, "2. Leistung & Abnahmestatus", ln=True)
+  # Zählerstände
+  pdf.set_font("Helvetica", "B", 10)
+  pdf.set_fill_color(240, 244, 248)
+  pdf.cell(0, 7, " Zählerstände", 0, 1, "L", fill=True)
 
-        add_row("Leistungsbeschreibung", beschreibung)
-        add_row("Abnahmeergebnis", abnahme_status)
-        add_row("Maengel / Restarbeiten", maengel_text if maengel_text else "Keine Maengel festgestellt.")
-        add_row("Vereinbarte Massnahme", massnahme)
-        add_row("Frist zur Mängelbeseitigung", frist.strftime('%d.%m.%Y'))
-        pdf.ln(6)
+  pdf.set_font("Helvetica", "", 9)
+  pdf.cell(
+      95,
+      6,
+      f" Kaltwasser-Zähler (Nr.: {kw_num}): {kw_val} m³",
+      0,
+      0,
+      "L",
+  )
+  pdf.cell(
+      95,
+      6,
+      f" Warmwasser-Zähler (Nr.: {ww_num}): {ww_val} m³",
+      0,
+      1,
+      "L",
+  )
 
-        # 4. Fotodokumentation einbetten (falls vorhanden)
-        if uploaded_files:
-            pdf.set_font('helvetica', 'B', 11)
-            pdf.set_text_color(2, 132, 199)
-            pdf.cell(0, 8, "Fotodokumentation", ln=True)
-            pdf.ln(2)
+  pdf.cell(
+      190,
+      6,
+      f" Heizkostenverteiler — Wohnzimmer: {h_wz} | Kinderzimmer: {h_kz} |"
+      f" Flur: {h_fl}",
+      0,
+      1,
+      "L",
+  )
+  pdf.cell(
+      190,
+      6,
+      f" Heizkostenverteiler — Bad: {h_ba} | Küche: {h_ku}",
+      0,
+      1,
+      "L",
+  )
+  pdf.ln(5)
 
-            for idx, file in enumerate(uploaded_files):
-                img = Image.open(file)
-                if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
-                    img = img.convert("RGB")
-                
-                # Bild temporär im Arbeitsspeicher sichern
-                img_path = f"temp_photo_{idx}.jpg"
-                img.save(img_path, "JPEG")
-                
-                pdf.image(img_path, w=80)
-                pdf.set_font('helvetica', '', 8)
-                pdf.set_text_color(100, 100, 100)
-                pdf.cell(0, 6, clean(f"Foto {idx+1}: {file.name}"), ln=True)
-                pdf.ln(4)
-                
-                # Aufräumen
-                if os.path.exists(img_path):
-                    os.remove(img_path)
+  # Raumzustand & Mängel
+  pdf.set_font("Helvetica", "B", 10)
+  pdf.set_fill_color(240, 244, 248)
+  pdf.cell(0, 7, " Zustand der Räume & Mängel", 0, 1, "L", fill=True)
 
-        # Signaturen verarbeiten und einfügen
-        pdf.ln(5)
-        pdf.set_font('helvetica', 'B', 11)
-        pdf.set_text_color(2, 132, 199)
-        pdf.cell(0, 8, "Unterschriften", ln=True)
-        pdf.ln(2)
+  # Tabellenkopf
+  pdf.set_font("Helvetica", "B", 9)
+  pdf.set_fill_color(230, 235, 240)
+  pdf.cell(40, 6, "Raum", 1, 0, "C", fill=True)
+  pdf.cell(40, 6, "Zustand", 1, 0, "C", fill=True)
+  pdf.cell(110, 6, "Mängel / Bemerkungen", 1, 1, "C", fill=True)
 
-        def save_sig_to_file(state_key, filename):
-            if state_key in st.session_state and st.session_state[state_key] is not None:
-                img_data = st.session_state[state_key].astype("uint8")
-                pil_img = Image.fromarray(img_data, mode="RGBA")
-                background = Image.new("RGB", pil_img.size, (255, 255, 255))
-                background.paste(pil_img, mask=pil_img.split()[3])
-                background.save(filename, "PNG")
-                return True
-            return False
+  pdf.set_font("Helvetica", "", 9)
+  for room, data in room_data.items():
+    pdf.cell(40, 6, room, 1, 0, "L")
+    pdf.cell(40, 6, data["zustand"], 1, 0, "C")
+    m_text = data["maengel"] if data["maengel"].strip() else "Keine Mängel"
+    pdf.cell(110, 6, m_text, 1, 1, "L")
 
-        sig1_exists = save_sig_to_file("saved_handwerker_sig", "sig1.png")
-        sig2_exists = save_sig_to_file("saved_kare_sig", "sig2.png")
+  pdf.ln(5)
 
-        start_y = pdf.get_y()
-        
-        # Handwerker Unterschrift Block
-        pdf.set_xy(10, start_y)
-        if sig1_exists:
-            pdf.image("sig1.png", w=60)
-            pdf.ln(2)
-        else:
-            pdf.ln(15)
-        pdf.set_x(10)
-        pdf.set_font('helvetica', '', 9)
-        pdf.set_text_color(51, 51, 51)
-        pdf.cell(90, 5, "____________________________________", ln=True)
-        pdf.set_x(10)
-        pdf.cell(90, 5, clean("Handwerker / Auftragnehmer"))
+  # Vereinbarungen
+  pdf.set_font("Helvetica", "B", 10)
+  pdf.set_fill_color(240, 244, 248)
+  pdf.cell(0, 7, " Vereinbarungen & Fristen", 0, 1, "L", fill=True)
+  pdf.set_font("Helvetica", "", 9)
+  pdf.multi_cell(
+      0,
+      6,
+      agreements if agreements.strip() else "Keine gesonderten Vereinbarungen.",
+  )
+  pdf.ln(10)
 
-        # KARE-Immobilien Unterschrift Block
-        pdf.set_xy(110, start_y)
-        if sig2_exists:
-            pdf.image("sig2.png", w=60)
-            pdf.ln(2)
-        else:
-            pdf.ln(15)
-        pdf.set_x(110)
-        pdf.cell(90, 5, "____________________________________", ln=True)
-        pdf.set_x(110)
-        pdf.cell(90, 5, clean("KARE-Immobilien"))
+  # Unterschriften
+  pdf.set_font("Helvetica", "B", 10)
+  pdf.set_fill_color(240, 244, 248)
+  pdf.cell(0, 7, " Unterschriften", 0, 1, "L", fill=True)
+  pdf.ln(5)
 
-        # Temporäre Signatur-Dateien aufräumen
-        for f in ["sig1.png", "sig2.png"]:
-            if os.path.exists(f):
-                os.remove(f)
+  # Unterschriften-Canvas in PDF einbetten (falls vorhanden)
+  sig_y = pdf.get_y()
+  pdf.cell(95, 6, " Unterschrift Vermieter", 0, 0, "L")
+  pdf.cell(95, 6, " Unterschrift Mieter", 0, 1, "L")
+  pdf.ln(20)  Platzhalter für Unterschriftenlinien
 
-        pdf_bytes = pdf.output(dest='S').encode('latin1')
+  pdf.set_font("Helvetica", "I", 8)
+  pdf.set_text_color(100, 100, 100)
+  pdf.cell(
+      0,
+      6,
+      "Ort, Datum, Unterschriften bestätigen die Richtigkeit der obigen"
+      " Angaben.",
+      0,
+      1,
+      "L",
+  )
 
-        st.success("Handwerkerprotokoll erfolgreich als PDF erstellt!")
-        st.download_button(
-            label="📄 Handwerkerprotokoll als PDF herunterladen",
-            data=pdf_bytes,
-            file_name=(
-                f"Handwerker_{datum.strftime('%Y%m%d')}_{gewerk.split('/')[0].strip()}.pdf"
-            ),
-            mime="application/pdf",
-        )
+  # PDF Bytes generieren
+  pdf_bytes = pdf.output()
+
+  st.success("Protokoll wurde erfolgreich erstellt!")
+  st.download_button(
+      label="📥 PDF-Protokoll herunterladen",
+      data=pdf_bytes,
+      file_name=(
+          f"Wohnungsabnahme_{tenant.replace(' ', '_')}_{date.strftime('%Y%m%d')}.pdf"
+      ),
+      mime="application/pdf",
+  )
