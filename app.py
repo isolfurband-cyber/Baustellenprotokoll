@@ -7,8 +7,8 @@ from streamlit_drawable_canvas import st_canvas
 
 # Seitenkonfiguration
 st.set_page_config(
-    page_title="KARE-Immobilien - Wohnungsabnahmeprotokoll",
-    page_icon="📋",
+    page_title="KARE-Immobilien - Baustellenprotokoll",
+    page_icon="🏗️",
     layout="wide",
 )
 
@@ -19,7 +19,7 @@ st.set_page_config(
 
 class PDFProtocol(FPDF):
 
-  def __init__(self, protocol_type="Uebergabe"):
+  def __init__(self, protocol_type="Baustellenprotokoll"):
     super().__init__()
     self.protocol_type = protocol_type
 
@@ -27,7 +27,7 @@ class PDFProtocol(FPDF):
     self.set_font("Helvetica", "B", 14)
     self.set_text_color(20, 40, 80)
     self.cell(
-        0, 8, "KARE-Immobilien - Wohnungsabnahmeprotokoll", 0, 1, "LEFT"
+        0, 8, "KARE-Immobilien - Baustellenprotokoll", 0, 1, "LEFT"
     )
 
     self.set_font("Helvetica", "", 9)
@@ -35,8 +35,7 @@ class PDFProtocol(FPDF):
     self.cell(
         0,
         5,
-        "Talstr. 32 | 07545 Gera | Tel.: 0365 / 800 49 37 | E-Mail:"
-        " Info@KARE-Immobilien.de",
+        "Talstr. 32 | 07545 Gera | Tel.: 0365 / 800 49 37 | E-Mail: Info@KARE-Immobilien.de",
         0,
         1,
         "LEFT",
@@ -55,8 +54,7 @@ class PDFProtocol(FPDF):
     self.cell(
         0,
         10,
-        f"Seite {self.page_no()} von {{nb}} | KARE-Immobilien - Protokoll"
-        f" ({self.protocol_type})",
+        f"Seite {self.page_no()} von {{nb}} | KARE-Immobilien - Baustellenprotokoll",
         0,
         0,
         "C",
@@ -67,95 +65,48 @@ class PDFProtocol(FPDF):
 # STREAMLIT BENUTZEROBERFLÄCHE
 # -------------------------------------------------------------
 
-st.title("📋 KARE-Immobilien – Digitales Abnahmeprotokoll")
+st.title("🏗️ KARE-Immobilien – Digitales Baustellenprotokoll")
 st.markdown(
-    "Erstellen Sie hier das rechtssichere Wohnungsabnahmeprotokoll für Ihre"
-    " Mietobjekte in Gera."
+    "Erstellen Sie hier Ihr Protokoll für Baustellen und Handwerkerleistungen."
 )
 
 with st.form("protocol_form"):
-  st.subheader("1. Allgemeine Objektdaten")
+  st.subheader("1. Objektdaten & Firma")
   col1, col2 = st.columns(2)
   with col1:
-    proto_type = st.selectbox(
-        "Protokoll-Art", ["Wohnungsübergabe", "Wohnungsrückgabe"]
+    ort = st.text_input("Ort / Baustelle / Adresse", "Talstr. 32, 07545 Gera")
+    firma = st.text_input(
+        "Auszuführende Firma / Gewerk", "Muster-Handwerksfirma GmbH"
     )
-    street = st.text_input("Straße & Hausnummer", "Talstr. 32")
-    zip_city = st.text_input("PLZ & Ort", "07545 Gera")
-    floor = st.text_input("Etage / Lage", "2. Obergeschoss links")
   with col2:
-    date = st.date_input("Datum der Abnahme", datetime.now())
-    landlord = st.text_input(
-        "Vermieter / Vertreter", "KARE-Immobilien (Hausverwaltung)"
-    )
-    tenant = st.text_input("Mieter", "Max Mustermann")
-    keys_handed = st.text_input(
-        "Übergebene Schlüssel (Anzahl & Art)",
-        "3x Wohnungsschlüssel, 2x Kellerschlüssel, 1x Briefkastenschlüssel",
-    )
+    date = st.date_input("Datum der Begehung", datetime.now())
+    bearbeiter = st.text_input("Protokoll geführt durch", "KARE-Immobilien")
 
   st.divider()
 
-  st.subheader("2. Zählerstände")
-  st.markdown(
-      "Bitte tragen Sie die aktuellen Zählerstände und Zählernummern ein:"
-  )
-
-  col_z1, col_z2 = st.columns(2)
-  with col_z1:
-    kw_num = st.text_input("Zählernummer Kaltwasser", "KW-987654")
-    kw_val = st.text_input("Stand Kaltwasser (m³)", "142.50")
-    ww_num = st.text_input("Zählernummer Warmwasser", "WW-123456")
-    ww_val = st.text_input("Stand Warmwasser (m³)", "58.20")
-  with col_z2:
-    st.markdown("##### Heizungszähler (Heizkostenverteiler)")
-    h_wz = st.text_input("Wohnzimmer (Nr. / Stand)", "HZ-01: 1245")
-    h_kz = st.text_input("Kinderzimmer (Nr. / Stand)", "HZ-02: 832")
-    h_fl = st.text_input("Flur (Nr. / Stand)", "HZ-03: 150")
-    h_ba = st.text_input("Bad (Nr. / Stand)", "HZ-04: 610")
-    h_ku = st.text_input("Küche (Nr. / Stand)", "HZ-05: 445")
-
-  st.divider()
-
-  st.subheader("3. Mängel & Zustand der Räume")
-  rooms = ["Wohnzimmer", "Kinderzimmer", "Flur", "Bad", "Küche", "Schlafzimmer"]
-  room_data = {}
-
-  for room in rooms:
-    with st.expander(f"Raum: {room}"):
-      c1, c2 = st.columns(2)
-      with c1:
-        cond = st.selectbox(
-            f"Zustand {room}", ["Einwandfrei", "Gebrauchsspuren", "Mängel"], key=f"c_{room}"
-        )
-      with c2:
-        defects = st.text_area(
-            f"Mängel / Bemerkungen in {room}",
-            placeholder="z.B. Bohrlocher in Wand, leichte Kratzer Parkett...",
-            key=f"d_{room}",
-        )
-      room_data[room] = {"zustand": cond, "maengel": defects}
-
-  st.divider()
-
-  st.subheader("4. Allgemeine Vereinbarungen & Nacharbeiten")
-  agreements = st.text_area(
-      "Vereinbarte Fristen oder Sonderabsprachen",
-      placeholder=(
-          "z.B. Mieter streicht das Schlafzimmer bis zum 30.09. fachgerecht"
-          " nach..."
-      ),
+  st.subheader("2. Mängel & Feststellungen")
+  maengel = st.text_area(
+      "Beschreibung der Mängel / Aufgaben / Feststellungen",
+      placeholder="z.B. Malerarbeiten im Flur unvollständig, Steckdose lose...",
+      height=150,
   )
 
   st.divider()
 
-  st.subheader("5. Digitale Unterschriften")
-  st.markdown("Bitte unterschreiben Sie im Feld unten:")
+  st.subheader("3. Fotodokumentation")
+  uploaded_files = st.file_uploader(
+      "Bilder hochladen (PNG, JPG, JPEG)",
+      type=["png", "jpg", "jpeg"],
+      accept_multiple_files=True,
+  )
 
+  st.divider()
+
+  st.subheader("4. Digitale Unterschriften")
   col_sig1, col_sig2 = st.columns(2)
   with col_sig1:
-    st.markdown("**Unterschrift Vermieter / Vertreter**")
-    canvas_landlord = st_canvas(
+    st.markdown("**Unterschrift Auftraggeber (KARE)**")
+    canvas_client = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="#000000",
@@ -164,12 +115,12 @@ with st.form("protocol_form"):
         width=300,
         drawing_mode="freedraw",
         return_image_data=True,
-        key="canvas_landlord",
+        key="canvas_client",
     )
 
   with col_sig2:
-    st.markdown("**Unterschrift Mieter**")
-    canvas_tenant = st_canvas(
+    st.markdown("**Unterschrift Ausführende Firma / Vertreter**")
+    canvas_contractor = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=2,
         stroke_color="#000000",
@@ -178,7 +129,7 @@ with st.form("protocol_form"):
         width=300,
         drawing_mode="freedraw",
         return_image_data=True,
-        key="canvas_tenant",
+        key="canvas_contractor",
     )
 
   submitted = st.form_submit_button(
@@ -190,7 +141,7 @@ with st.form("protocol_form"):
 # -------------------------------------------------------------
 
 if submitted:
-  pdf = PDFProtocol(protocol_type=proto_type)
+  pdf = PDFProtocol()
   pdf.alias_nb_pages()
   pdf.add_page()
   pdf.set_auto_page_break(auto=True, margin=15)
@@ -198,166 +149,117 @@ if submitted:
   # Titel des Dokuments
   pdf.set_font("Helvetica", "B", 16)
   pdf.set_text_color(20, 40, 80)
-  pdf.cell(0, 10, f"Wohnungs-{proto_type.lower()}sprotokoll", 0, 1, "C")
+  pdf.cell(0, 10, "Baustellenprotokoll", 0, 1, "C")
   pdf.ln(5)
 
   # Objektdaten-Box
   pdf.set_font("Helvetica", "B", 10)
   pdf.set_fill_color(240, 244, 248)
-  pdf.cell(0, 7, " Objektdaten & Beteiligte", 0, 1, "L", fill=True)
+  pdf.cell(0, 7, " Baustellendaten", 0, 1, "L", fill=True)
 
   pdf.set_font("Helvetica", "", 10)
   pdf.set_text_color(50, 50, 50)
 
   col_w1, col_w2 = 95, 95
-  pdf.cell(
-      col_w1,
-      6,
-      f" Objektadresse: {street}, {zip_city} ({floor})",
-      0,
-      0,
-      "L",
-  )
+  pdf.cell(col_w1, 6, f" Ort / Baustelle: {ort}", 0, 0, "L")
   pdf.cell(col_w2, 6, f" Datum: {date.strftime('%d.%m.%Y')}", 0, 1, "L")
-  pdf.cell(col_w1, 6, f" Vermieter: {landlord}", 0, 0, "L")
-  pdf.cell(col_w2, 6, f" Mieter: {tenant}", 0, 1, "L")
-  pdf.cell(0, 6, f" Übergebene Schlüssel: {keys_handed}", 0, 1, "L")
+  pdf.cell(col_w1, 6, f" Auszuführende Firma: {firma}", 0, 0, "L")
+  pdf.cell(col_w2, 6, f" Protokoll durch: {bearbeiter}", 0, 1, "L")
   pdf.ln(5)
 
-  # Zählerstände
+  # Mängel / Feststellungen
   pdf.set_font("Helvetica", "B", 10)
   pdf.set_fill_color(240, 244, 248)
-  pdf.cell(0, 7, " Zählerstände", 0, 1, "L", fill=True)
-
-  pdf.set_font("Helvetica", "", 9)
-  pdf.cell(
-      95,
-      6,
-      f" Kaltwasser-Zähler (Nr.: {kw_num}): {kw_val} m³",
-      0,
-      0,
-      "L",
-  )
-  pdf.cell(
-      95,
-      6,
-      f" Warmwasser-Zähler (Nr.: {ww_num}): {ww_val} m³",
-      0,
-      1,
-      "L",
-  )
-
-  pdf.cell(
-      190,
-      6,
-      f" Heizkostenverteiler - Wohnzimmer: {h_wz} | Kinderzimmer: {h_kz} |"
-      f" Flur: {h_fl}",
-      0,
-      1,
-      "L",
-  )
-  pdf.cell(
-      190,
-      6,
-      f" Heizkostenverteiler - Bad: {h_ba} | Küche: {h_ku}",
-      0,
-      1,
-      "L",
-  )
-  pdf.ln(5)
-
-  # Raumzustand & Mängel
-  pdf.set_font("Helvetica", "B", 10)
-  pdf.set_fill_color(240, 244, 248)
-  pdf.cell(0, 7, " Zustand der Räume & Mängel", 0, 1, "L", fill=True)
-
-  # Tabellenkopf
-  pdf.set_font("Helvetica", "B", 9)
-  pdf.set_fill_color(230, 235, 240)
-  pdf.cell(40, 6, "Raum", 1, 0, "C", fill=True)
-  pdf.cell(40, 6, "Zustand", 1, 0, "C", fill=True)
-  pdf.cell(110, 6, "Mängel / Bemerkungen", 1, 1, "C", fill=True)
-
-  pdf.set_font("Helvetica", "", 9)
-  for room, data in room_data.items():
-    pdf.cell(40, 6, room, 1, 0, "L")
-    pdf.cell(40, 6, data["zustand"], 1, 0, "C")
-    m_text = data["maengel"] if data["maengel"].strip() else "Keine Mängel"
-    pdf.cell(110, 6, m_text, 1, 1, "L")
-
-  pdf.ln(5)
-
-  # Vereinbarungen
-  pdf.set_font("Helvetica", "B", 10)
-  pdf.set_fill_color(240, 244, 248)
-  pdf.cell(0, 7, " Vereinbarungen & Fristen", 0, 1, "L", fill=True)
-  pdf.set_font("Helvetica", "", 9)
+  pdf.cell(0, 7, " Mängel & Feststellungen", 0, 1, "L", fill=True)
+  pdf.ln(2)
+  pdf.set_font("Helvetica", "", 10)
   pdf.multi_cell(
       0,
       6,
-      agreements if agreements.strip() else "Keine gesonderten Vereinbarungen.",
+      maengel
+      if maengel.strip()
+      else "Keine Mängel / Feststellungen eingetragen.",
   )
-  pdf.ln(10)
+  pdf.ln(5)
+
+  # Fotodokumentation im PDF einbetten
+  if uploaded_files:
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_fill_color(240, 244, 248)
+    pdf.cell(0, 7, " Fotodokumentation", 0, 1, "L", fill=True)
+    pdf.ln(3)
+
+    for idx, uploaded_file in enumerate(uploaded_files):
+      try:
+        image = Image.open(uploaded_file)
+        if image.mode in ("RGBA", "LA"):
+          image = image.convert("RGB")
+
+        img_io = io.BytesIO()
+        image.save(img_io, format="JPEG", quality=85)
+        img_io.seek(0)
+
+        if pdf.get_y() > 210:
+          pdf.add_page()
+
+        pdf.set_font("Helvetica", "B", 9)
+        pdf.cell(0, 6, f"Foto {idx+1}: {uploaded_file.name}", 0, 1, "L")
+        pdf.image(img_io, w=100)
+        pdf.ln(5)
+      except Exception as e:
+        print(f"Fehler beim Einbinden des Bildes: {e}")
 
   # Unterschriften Sektion
+  if pdf.get_y() > 220:
+    pdf.add_page()
+
   pdf.set_font("Helvetica", "B", 10)
   pdf.set_fill_color(240, 244, 248)
   pdf.cell(0, 7, " Unterschriften", 0, 1, "L", fill=True)
   pdf.ln(5)
 
-  # Y-Position vor dem Einfügen merken
-  y_sig = pdf.get_y()
+  y_img_canv = pdf.get_y()
 
   pdf.set_font("Helvetica", "B", 9)
-  pdf.cell(95, 5, "Unterschrift Vermieter", 0, 0, "L")
-  pdf.cell(95, 5, "Unterschrift Mieter", 0, 1, "L")
+  pdf.cell(95, 5, "Unterschrift Auftraggeber", 0, 0, "L")
+  pdf.cell(95, 5, "Unterschrift Ausführende Firma", 0, 1, "L")
 
-  y_img = pdf.get_y()
-
-  # Funktion zum Einbetten von Canvas-Daten direkt über BytesIO
   def embed_signature(canvas_obj, x_pos):
     if canvas_obj.image_data is not None:
       try:
-        # Konvertiere NumPy-Array direkt in ein PIL Image
         img = Image.fromarray(
             canvas_obj.image_data.astype("uint8"), mode="RGBA"
         )
-        # In BytesIO Puffer schreiben (PNG Format)
         img_io = io.BytesIO()
         img.save(img_io, format="PNG")
         img_io.seek(0)
-        # Bild direkt in FPDF laden
-        pdf.image(img_io, x=x_pos, y=y_img, w=85)
+        pdf.image(img_io, x=x_pos, y=y_img_canv + 5, w=85)
       except Exception as e:
         print(f"Fehler beim Laden der Unterschrift: {e}")
 
-  embed_signature(canvas_landlord, 10)
-  embed_signature(canvas_tenant, 110)
+  embed_signature(canvas_client, 10)
+  embed_signature(canvas_contractor, 110)
 
-  # Platzhalter für den Platz der Unterschriften im PDF einnehmen
   pdf.ln(25)
-
   pdf.set_font("Helvetica", "I", 8)
   pdf.set_text_color(100, 100, 100)
   pdf.cell(
       0,
       6,
-      "Ort, Datum, Unterschriften bestätigen die Richtigkeit der obigen"
-      " Angaben.",
+      "Ort, Datum, Unterschriften bestätigen die Richtigkeit der obigen Angaben.",
       0,
       1,
       "L",
   )
 
-  # PDF Bytes erzwingen
   pdf_bytes = bytes(pdf.output())
 
-  st.success("Protokoll wurde erfolgreich erstellt!")
+  st.success("Baustellenprotokoll wurde erfolgreich erstellt!")
   st.download_button(
       label="📥 PDF-Protokoll herunterladen",
       data=pdf_bytes,
       file_name=(
-          f"Wohnungsabnahme_{tenant.replace(' ', '_')}_{date.strftime('%Y%m%d')}.pdf"
+          f"Baustellenprotokoll_{firma.replace(' ', '_')}_{date.strftime('%Y%m%d')}.pdf"
       ),
       mime="application/pdf",
   )
